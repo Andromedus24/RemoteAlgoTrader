@@ -1,0 +1,27 @@
+# RemoteAlgoTrader v1.0 Dependencies
+# Core ML and AI
+transformers>=4.35.0
+torch>=2.0.0
+accelerate>=0.20.0
+bitsandbytes>=0.41.0
+
+# Trading APIs
+alpaca-py>=0.13.0
+yfinance>=0.2.18
+
+# Data Analysis
+pandas>=2.0.0
+pandas-ta>=0.3.14b0
+numpy>=1.24.0
+
+# HTTP and API
+requests>=2.31.0
+
+# Utilities
+python-dotenv>=1.0.0
+schedule>=1.2.0
+
+# Optional: For advanced features
+# websocket-client>=1.6.0  # For real-time data streaming
+# plotly>=5.15.0  # For charting and visualization
+# streamlit>=1.25.0  # For web dashboard
