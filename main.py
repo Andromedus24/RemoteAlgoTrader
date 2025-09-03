@@ -27,6 +27,9 @@ from alpaca.trading.stream import TradingStream
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 
+# Import risk management and compliance modules
+from risk_compliance import RiskManager, ComplianceManager, RiskLevel, ComplianceStatus
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -52,6 +55,20 @@ class TradingConfig:
         self.stop_loss_pct = 0.02  # 2% stop loss
         self.take_profit_pct = 0.05  # 5% take profit
         self.risk_per_trade = 0.01  # 1% risk per trade
+        
+        # Risk management configuration
+        self.risk_monitoring_interval = 60  # seconds
+        self.risk_db_path = 'risk_management.db'
+        self.compliance_db_path = 'compliance.db'
+        
+        # Risk thresholds
+        self.risk_thresholds = {
+            'max_daily_loss': 0.05,  # 5% max daily loss
+            'max_position_size': 0.1,  # 10% max per position
+            'max_sector_exposure': 0.3,  # 30% max per sector
+            'max_drawdown': 0.15,  # 15% max drawdown
+            'var_limit': 0.02,  # 2% VaR limit
+        }
 
 class SentimentAnalyzer:
     """AI-powered sentiment analysis using DeepSeek model"""
@@ -209,6 +226,17 @@ class TradingBot:
         self.news_collector = NewsCollector(config.polygon_api_key)
         self.technical_analyzer = TechnicalAnalyzer()
         
+        # Initialize risk management and compliance
+        self.risk_manager = RiskManager({
+            'risk_monitoring_interval': config.risk_monitoring_interval,
+            'risk_db_path': config.risk_db_path,
+            'risk_thresholds': config.risk_thresholds
+        })
+        
+        self.compliance_manager = ComplianceManager({
+            'compliance_db_path': config.compliance_db_path
+        })
+        
         # Initialize trading client
         try:
             self.trading_client = TradingClient(config.api_key, config.api_secret)
@@ -223,6 +251,8 @@ class TradingBot:
         self.positions = {}
         self.positive_sentiment_stocks = []
         self.negative_sentiment_stocks = []
+        self.daily_pnl = 0.0
+        self.portfolio_value = 100000  # Placeholder, should get from account
         
     def collect_sentiment_data(self):
         """Collect news and analyze sentiment"""
@@ -264,8 +294,47 @@ class TradingBot:
             return None
     
     def execute_trade(self, symbol: str, side: str, quantity: int):
-        """Execute a trade order"""
+        """Execute a trade order with risk and compliance checks"""
         try:
+            # Get current market data for compliance checks
+            current_data = self.get_stock_data(symbol, period='1d', interval='1m')
+            if current_data is None:
+                logger.error(f"Cannot execute trade for {symbol}: No market data available")
+                return None
+            
+            current_price = current_data['Close'].iloc[-1]
+            position_value = quantity * current_price
+            
+            # Risk management checks
+            if not self.risk_manager.check_position_limit(symbol, quantity, position_value):
+                logger.warning(f"Risk limit check failed for {symbol}")
+                return None
+            
+            # Compliance checks
+            trade_data = {
+                'symbol': symbol,
+                'side': side,
+                'quantity': quantity,
+                'price': current_price,
+                'position_value': position_value,
+                'portfolio_value': self.portfolio_value,
+                'daily_pnl': self.daily_pnl,
+                'order_size': quantity,
+                'market_volume': current_data['Volume'].iloc[-1] if 'Volume' in current_data.columns else 1000000
+            }
+            
+            violations = self.compliance_manager.check_compliance(trade_data)
+            if violations:
+                logger.warning(f"Compliance violations detected for {symbol}: {[v.message for v in violations]}")
+                return None
+            
+            # Check compliance status
+            compliance_status = self.compliance_manager.get_compliance_status()
+            if compliance_status == ComplianceStatus.SUSPENDED:
+                logger.error(f"Trading suspended due to compliance violations")
+                return None
+            
+            # Execute the trade
             order_data = MarketOrderRequest(
                 symbol=symbol,
                 qty=quantity,
@@ -276,16 +345,22 @@ class TradingBot:
             order = self.trading_client.submit_order(order_data)
             logger.info(f"{side} order submitted for {symbol}: {order.id}")
             
-            # Update positions
+            # Update positions and risk management
             if side == "BUY":
                 self.positions[symbol] = {
                     'quantity': quantity,
-                    'entry_price': order.filled_avg_price or 0,
+                    'entry_price': order.filled_avg_price or current_price,
                     'entry_time': datetime.now()
                 }
+                self.risk_manager.update_position(symbol, quantity, position_value, quantity)
             else:
                 if symbol in self.positions:
+                    # Calculate P&L
+                    entry_price = self.positions[symbol]['entry_price']
+                    pnl = (current_price - entry_price) * quantity
+                    self.daily_pnl += pnl
                     del self.positions[symbol]
+                    self.risk_manager.update_position(symbol, 0, 0, quantity)
             
             return order
             
@@ -293,8 +368,55 @@ class TradingBot:
             logger.error(f"Failed to execute {side} order for {symbol}: {e}")
             return None
     
+    def get_risk_compliance_status(self) -> Dict:
+        """Get current risk and compliance status"""
+        try:
+            risk_summary = self.risk_manager.get_risk_summary()
+            compliance_status = self.compliance_manager.get_compliance_status()
+            
+            return {
+                'risk_summary': risk_summary,
+                'compliance_status': compliance_status.value,
+                'daily_pnl': self.daily_pnl,
+                'portfolio_value': self.portfolio_value,
+                'active_positions': len(self.positions),
+                'risk_alerts': len(self.risk_manager.risk_alerts),
+                'compliance_violations': len([v for v in self.compliance_manager.violations if not v.resolved])
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting risk/compliance status: {e}")
+            return {}
+    
+    def add_position_limit(self, symbol: str, max_position_size: float, max_position_value: float,
+                          max_daily_trades: int, max_daily_volume: float):
+        """Add position limit for a symbol"""
+        try:
+            self.risk_manager.add_position_limit(symbol, max_position_size, max_position_value,
+                                                max_daily_trades, max_daily_volume)
+            logger.info(f"Added position limit for {symbol}")
+        except Exception as e:
+            logger.error(f"Error adding position limit: {e}")
+    
+    def get_compliance_violations(self) -> List[Dict]:
+        """Get list of compliance violations"""
+        try:
+            return [
+                {
+                    'rule_id': v.rule_id,
+                    'violation_type': v.violation_type,
+                    'severity': v.severity.value,
+                    'message': v.message,
+                    'timestamp': v.timestamp.isoformat(),
+                    'resolved': v.resolved
+                }
+                for v in self.compliance_manager.violations
+            ]
+        except Exception as e:
+            logger.error(f"Error getting compliance violations: {e}")
+            return []
+    
     def manage_positions(self):
-        """Manage existing positions with stop-loss and take-profit"""
         for symbol, position in list(self.positions.items()):
             try:
                 current_data = self.get_stock_data(symbol, period='1d', interval='1m')
@@ -322,12 +444,24 @@ class TradingBot:
                 logger.error(f"Failed to manage position for {symbol}: {e}")
     
     def trading_cycle(self):
-        """Main trading cycle"""
-        logger.info("Starting trading cycle...")
+        """Main trading cycle with risk and compliance monitoring"""
+        logger.info("Starting trading cycle with risk management and compliance monitoring...")
         
         while self.trading_active:
             try:
                 current_time = datetime.now().strftime("%H:%M:%S")
+                
+                # Check risk and compliance status
+                status = self.get_risk_compliance_status()
+                if status.get('compliance_status') == 'suspended':
+                    logger.error("Trading suspended due to compliance violations")
+                    time.sleep(300)  # Wait 5 minutes before checking again
+                    continue
+                
+                # Log risk summary periodically
+                if int(current_time.split(':')[1]) % 15 == 0:  # Every 15 minutes
+                    logger.info(f"Risk Summary: {status.get('risk_summary', {})}")
+                    logger.info(f"Compliance Status: {status.get('compliance_status', 'unknown')}")
                 
                 # Check if it's time to collect new sentiment data
                 if current_time in self.config.trading_hours:

@@ -15,7 +15,9 @@ RemoteAlgoTrader v1.0 is a sophisticated algorithmic trading bot that combines *
 - 🤖 **AI Sentiment Analysis**: Uses DeepSeek R1 Distilled model for news sentiment analysis
 - 📊 **Technical Analysis**: Implements MACD, RSI, Bollinger Bands, and volume indicators
 - 📰 **Real-time News Integration**: Fetches financial news from Polygon.io API
-- 🎯 **Risk Management**: Built-in stop-loss, take-profit, and position sizing
+- 🎯 **Advanced Risk Management**: Comprehensive risk monitoring with VaR, drawdown, and volatility analysis
+- 🛡️ **Compliance System**: Automated compliance checking with regulatory rule enforcement
+- 📈 **Position Limits**: Configurable position size and exposure limits
 - 🔄 **Automated Trading**: 24/7 automated trading with configurable schedules
 - 📈 **Multi-timeframe Analysis**: Supports various timeframes for comprehensive analysis
 - 🛡️ **Error Handling**: Robust error handling and logging system
@@ -28,6 +30,8 @@ RemoteAlgoTrader v1.0
 ├── SentimentAnalyzer     # AI-powered news sentiment analysis
 ├── NewsCollector        # Financial news aggregation
 ├── TechnicalAnalyzer    # Technical indicator calculations
+├── RiskManager          # Advanced risk monitoring and analytics
+├── ComplianceManager    # Regulatory compliance and rule enforcement
 ├── TradingBot          # Main trading logic and execution
 └── TradingConfig       # Configuration management
 ```
@@ -132,6 +136,24 @@ TAKE_PROFIT_PCT=0.05
 
 ## 🛡️ Risk Management
 
+### Advanced Risk Monitoring
+
+- **Value at Risk (VaR)**: 95% and 99% confidence level calculations
+- **Maximum Drawdown**: Real-time drawdown monitoring and alerts
+- **Volatility Analysis**: Portfolio volatility tracking and limits
+- **Credit Risk**: Counterparty exposure monitoring
+- **Liquidity Risk**: Asset liquidity assessment and cash reserve management
+- **Concentration Risk**: Position and sector concentration limits
+
+### Compliance System
+
+- **Regulatory Rules**: Automated compliance rule checking
+- **Position Limits**: Enforce maximum position sizes and values
+- **Daily Loss Limits**: Prevent excessive daily losses
+- **Wash Trade Prevention**: Detect and prevent wash trading
+- **Market Manipulation Detection**: Identify suspicious trading patterns
+- **Violation Tracking**: Comprehensive violation logging and resolution
+
 ### Built-in Protections
 
 - **Stop-Loss**: Automatic position closure at predefined loss levels
@@ -139,6 +161,8 @@ TAKE_PROFIT_PCT=0.05
 - **Position Sizing**: Consistent risk per trade
 - **Maximum Positions**: Limit concurrent exposure
 - **Time-based Trading**: Operate only during market hours
+- **Risk Alerts**: Real-time risk violation notifications
+- **Trading Suspension**: Automatic suspension on critical violations
 
 ### Best Practices
 
@@ -152,12 +176,15 @@ TAKE_PROFIT_PCT=0.05
 
 ```
 RemoteAlgoTrader/
-├── main.py                 # Main trading bot
+├── main.py                 # Main trading bot with risk management
+├── risk_compliance.py      # Risk management and compliance system
 ├── requirements.txt        # Python dependencies
 ├── config.env.example     # Configuration template
 ├── README.md              # This file
 ├── .env                   # Your configuration (create this)
 ├── trading_bot.log       # Trading logs (auto-generated)
+├── risk_management.db    # Risk metrics database (auto-generated)
+├── compliance.db         # Compliance violations database (auto-generated)
 └── .gitignore            # Git ignore file
 ```
 
